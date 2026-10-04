@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, CheckCircle2, Download, Sparkles, Share2, Users, Library } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle2, Download, Sparkles, Share2, Users, Library, Mic, ImagePlus } from 'lucide-react';
 import api from '../api';
 import './WritingPad.css';
 import { useToast } from '../context/ToastContext';
@@ -11,6 +11,13 @@ import { ImmersiveAIMenu } from '../components/SmartPad/ImmersiveAIMenu';
 import { SharePadModal } from '../components/SmartPad/SharePadModal';
 import { Excalidraw, exportToBlob, MainMenu } from '@excalidraw/excalidraw';
 import { io } from 'socket.io-client';
+import { PadModeToggle } from '../components/SmartPad/PadModeToggle';
+import { RichTextEditor } from '../components/SmartPad/RichTextEditor';
+import { StudyToolbar } from '../components/SmartPad/StudyToolbar';
+import { FlashcardDrawer } from '../components/SmartPad/FlashcardDrawer';
+import { QuizModal } from '../components/SmartPad/QuizModal';
+import { MathSolver } from '../components/SmartPad/MathSolver';
+import { VoiceRecorder } from '../components/SmartPad/VoiceRecorder';
 import '@excalidraw/excalidraw/index.css';
 
 // Simple debounce function
@@ -66,20 +73,38 @@ const WritingPad = () => {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [immersiveMenu, setImmersiveMenu] = useState({ isOpen: false, position: null, selectedElement: null, canvasContext: '' });
   
+  // Pad Mode & Notes State
+  const [padMode, setPadMode] = useState('canvas'); // 'canvas' | 'split' | 'notes'
+  const [notesContent, setNotesContent] = useState(null);
+  const notesContentRef = useRef(null);
+  const editorRef = useRef(null);
+  
+  // Study Tools State
+  const [isFlashcardOpen, setIsFlashcardOpen] = useState(false);
+  const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [isMathSolverOpen, setIsMathSolverOpen] = useState(false);
+  const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
+  
   // Sidebar Resize State
-  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [sidebarWidth, setSidebarWidth] = useState(360);
   const isResizing = useRef(false);
 
   const handleMouseMove = useCallback((e) => {
     if (!isResizing.current) return;
     const newWidth = document.body.clientWidth - e.clientX;
-    if (newWidth >= 240 && newWidth <= 800) {
+    if (newWidth >= 260 && newWidth <= 720) {
       setSidebarWidth(newWidth);
     }
   }, []);
 
   const handleMouseUp = useCallback(() => {
-    isResizing.current = false;
+    if (isResizing.current) {
+      isResizing.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      const iframes = document.querySelectorAll('.smart-pad-wrapper iframe, .smart-pad-wrapper .excalidraw');
+      iframes.forEach(el => { el.style.pointerEvents = ''; });
+    }
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
   }, [handleMouseMove]);
@@ -87,6 +112,10 @@ const WritingPad = () => {
   const handleMouseDown = (e) => {
     e.preventDefault();
     isResizing.current = true;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    const iframes = document.querySelectorAll('.smart-pad-wrapper iframe, .smart-pad-wrapper .excalidraw');
+    iframes.forEach(el => { el.style.pointerEvents = 'none'; });
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
@@ -97,6 +126,51 @@ const WritingPad = () => {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [handleMouseMove, handleMouseUp]);
+
+  // Split View Resize State (between Notes & Canvas)
+  const [splitRatio, setSplitRatio] = useState(50); // percentage for Notes panel
+  const isSplitResizing = useRef(false);
+  const editorCanvasContainerRef = useRef(null);
+
+  const handleSplitMouseMove = useCallback((e) => {
+    if (!isSplitResizing.current || !editorCanvasContainerRef.current) return;
+    const containerRect = editorCanvasContainerRef.current.getBoundingClientRect();
+    if (!containerRect.width) return;
+    const newRatio = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+    if (newRatio >= 20 && newRatio <= 80) {
+      setSplitRatio(Math.round(newRatio));
+    }
+  }, []);
+
+  const handleSplitMouseUp = useCallback(() => {
+    if (isSplitResizing.current) {
+      isSplitResizing.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      const iframes = document.querySelectorAll('.smart-pad-wrapper iframe, .smart-pad-wrapper .excalidraw');
+      iframes.forEach(el => { el.style.pointerEvents = ''; });
+    }
+    document.removeEventListener('mousemove', handleSplitMouseMove);
+    document.removeEventListener('mouseup', handleSplitMouseUp);
+  }, [handleSplitMouseMove]);
+
+  const handleSplitMouseDown = (e) => {
+    e.preventDefault();
+    isSplitResizing.current = true;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    const iframes = document.querySelectorAll('.smart-pad-wrapper iframe, .smart-pad-wrapper .excalidraw');
+    iframes.forEach(el => { el.style.pointerEvents = 'none'; });
+    document.addEventListener('mousemove', handleSplitMouseMove);
+    document.addEventListener('mouseup', handleSplitMouseUp);
+  };
+
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleSplitMouseMove);
+      document.removeEventListener('mouseup', handleSplitMouseUp);
+    };
+  }, [handleSplitMouseMove, handleSplitMouseUp]);
   
   // Sharing & Collaboration State
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -155,6 +229,27 @@ const WritingPad = () => {
     [id]
   );
 
+  const performNotesSave = async (currentTitle, notesData) => {
+    try {
+      setSaveStatus('saving');
+      await api.put(`/pads/${id}`, {
+        title: currentTitle,
+        notes_content: notesData
+      });
+      setSaveStatus('saved');
+    } catch (error) {
+      console.error('Notes auto-save failed:', error);
+      setSaveStatus('error');
+    }
+  };
+
+  const debouncedNotesSave = useCallback(
+    debounce((newTitle, newContent) => {
+      performNotesSave(newTitle, newContent);
+    }, 1000),
+    [id]
+  );
+
   useEffect(() => {
     let isMounted = true;
     const fetchPad = async () => {
@@ -166,6 +261,16 @@ const WritingPad = () => {
         setTitle(res.data.title || 'Untitled Pad');
         titleRef.current = res.data.title || 'Untitled Pad';
         setIsPublic(res.data.is_public || false);
+        
+        // Load pad mode and notes content
+        setPadMode(res.data.pad_mode || 'canvas');
+        if (res.data.notes_content) {
+          const notesData = typeof res.data.notes_content === 'string'
+            ? JSON.parse(res.data.notes_content)
+            : res.data.notes_content;
+          setNotesContent(notesData);
+          notesContentRef.current = notesData;
+        }
         
         if (res.data.is_live_active) {
           setIsLiveSession(true);
@@ -218,6 +323,124 @@ const WritingPad = () => {
     titleRef.current = newTitle;
     setSaveStatus('saving');
     debouncedSave(newTitle, contentRef.current);
+  };
+
+  const handleNotesChange = (json) => {
+    setNotesContent(json);
+    notesContentRef.current = json;
+    setSaveStatus('saving');
+    debouncedNotesSave(titleRef.current, json);
+    
+    // Broadcast via socket for live collaboration
+    if (isLiveSession && socketRef.current) {
+      socketRef.current.emit('notes_update', {
+        padId: id,
+        notesContent: json
+      });
+    }
+  };
+
+  const handleModeChange = async (newMode) => {
+    setPadMode(newMode);
+    try {
+      await api.put(`/pads/${id}`, { pad_mode: newMode });
+    } catch (err) {
+      console.error('Failed to save pad mode:', err);
+    }
+  };
+
+  const handleGenerateMindmap = async () => {
+    if (!excalidrawAPIRef.current) return;
+    try {
+      const res = await api.post(`/pads/${id}/mindmap`);
+      if (res.data?.mermaid) {
+        const { parseMermaidToExcalidraw } = await import('@excalidraw/mermaid-to-excalidraw');
+        let cleanMermaid = res.data.mermaid;
+        if (cleanMermaid.startsWith('```')) {
+          cleanMermaid = cleanMermaid.replace(/^```mermaid\n?/, '').replace(/^```\n?/, '').replace(/\n?```$/, '');
+        }
+        const parsed = await parseMermaidToExcalidraw(cleanMermaid, { fontSize: 20 });
+        const elements = excalidrawAPIRef.current.getSceneElements();
+        excalidrawAPIRef.current.updateScene({ elements: [...elements, ...parsed.elements] });
+        if (padMode === 'notes') setPadMode('split');
+      }
+    } catch (err) {
+      console.error('Failed to generate mindmap:', err);
+      addToast('Failed to generate mindmap', 'error');
+    }
+  };
+
+  const handleInsertCanvasSelectionToNotes = async () => {
+    if (!excalidrawAPIRef.current) {
+      addToast('Canvas is not ready yet', 'error');
+      return;
+    }
+
+    try {
+      const elements = excalidrawAPIRef.current.getSceneElements();
+      const appState = excalidrawAPIRef.current.getAppState();
+      const selectedIds = Object.keys(appState.selectedElementIds || {}).filter(id => appState.selectedElementIds[id]);
+
+      let elementsToExport = elements.filter(el => selectedIds.includes(el.id) && !el.isDeleted);
+
+      // If nothing selected, prompt or export visible elements
+      if (elementsToExport.length === 0) {
+        const visibleElements = elements.filter(el => !el.isDeleted);
+        if (visibleElements.length === 0) {
+          addToast('Please select elements or draw on the canvas first!', 'info');
+          return;
+        }
+        elementsToExport = visibleElements;
+      }
+
+      // Convert selection to PNG image
+      const blob = await exportToBlob({
+        elements: elementsToExport,
+        appState: {
+          ...appState,
+          exportBackground: true,
+          viewBackgroundColor: appState.viewBackgroundColor || '#ffffff',
+          exportWithDarkMode: isDark,
+        },
+        files: excalidrawAPIRef.current.getFiles(),
+        mimeType: 'image/png',
+      });
+
+      // Convert blob to base64 Data URL so it is fully self-contained in the notes document
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      // If in canvas mode, switch to split mode so notes are visible
+      if (padMode === 'canvas') {
+        handleModeChange('split');
+      }
+
+      // If editor instance is active, insert image node directly
+      if (editorRef.current) {
+        editorRef.current.chain().focus().setImage({ src: dataUrl }).run();
+      } else {
+        // Fallback: append image to notesContent JSON
+        const imageNode = {
+          type: 'image',
+          attrs: { src: dataUrl }
+        };
+        const currentContent = notesContentRef.current || { type: 'doc', content: [] };
+        const updated = {
+          ...currentContent,
+          content: [...(currentContent.content || []), imageNode]
+        };
+        handleNotesChange(updated);
+      }
+
+      addToast('📸 Canvas snapshot added to notes!', 'success');
+    } catch (err) {
+      console.error('Failed to export canvas selection to notes:', err);
+      addToast('Failed to copy selection to notes', 'error');
+    }
   };
 
   const handleExportPDF = async () => {
@@ -289,6 +512,13 @@ const WritingPad = () => {
           elements: data.elements,
           ...(data.appState?.viewBackgroundColor ? { appState: { viewBackgroundColor: data.appState.viewBackgroundColor } } : {})
         });
+      }
+    });
+
+    socketRef.current.on('notes_update', (data) => {
+      if (data.notesContent) {
+        setNotesContent(data.notesContent);
+        notesContentRef.current = data.notesContent;
       }
     });
 
@@ -528,89 +758,191 @@ const WritingPad = () => {
       <div className="smart-pad-wrapper" style={{ display: 'flex' }}>
       
       <div className="pad-editor-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        {/* Editor Header */}
-        <div className="pad-editor-header" style={{ flexShrink: 0 }}>
+        {/* Editor Top Navigation Bar */}
+        <div className="pad-editor-header">
+          {/* Zone 1: Back, Title & Save Status */}
           <div className="pad-header-left">
-            <button className="icon-btn-ghost" onClick={() => navigate('/pads')}>
-              <ArrowLeft size={20} />
+            <button 
+              className="pad-header-icon-btn" 
+              onClick={() => navigate('/pads')}
+              title="Back to Writing Pads"
+              type="button"
+            >
+              <ArrowLeft size={18} />
             </button>
-            <input 
-              type="text"
-              className="pad-title-input"
-              value={title}
-              onChange={handleTitleChange}
-              placeholder="Untitled Pad"
-            />
+            <div className="pad-title-wrapper">
+              <input 
+                type="text"
+                className="pad-title-input"
+                value={title}
+                onChange={handleTitleChange}
+                placeholder="Untitled Pad"
+                title="Click to rename pad"
+              />
+            </div>
+            <div className="pad-save-badge">
+              {saveStatus === 'saved' && (
+                <span className="status-indicator saved">
+                  <CheckCircle2 size={13} />
+                  <span>Saved</span>
+                </span>
+              )}
+              {saveStatus === 'saving' && (
+                <span className="status-indicator saving">
+                  <span className="save-dot spin-icon" />
+                  <span>Saving...</span>
+                </span>
+              )}
+              {saveStatus === 'error' && (
+                <span className="status-indicator error">
+                  <span>Error saving</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Zone 2: Segmented View Mode Toggle */}
+          <div className="pad-header-center">
+            <PadModeToggle mode={padMode} onChange={handleModeChange} />
+          </div>
+
+          {/* Zone 3: Standardized Action Buttons */}
+          <div className="pad-header-right">
+            {/* Canvas Actions */}
+            {(padMode === 'canvas' || padMode === 'split') && (
+              <div className="header-btn-group">
+                <button 
+                  onClick={handleInsertCanvasSelectionToNotes}
+                  className="header-action-btn primary-tint"
+                  title="Snap selected canvas area directly into your notes"
+                  type="button"
+                >
+                  <ImagePlus size={15} />
+                  <span className="btn-text">Snap to Notes</span>
+                </button>
+                <button 
+                  onClick={handleExportPDF}
+                  className="header-action-btn"
+                  title="Export canvas as high-resolution image"
+                  type="button"
+                >
+                  <Download size={15} />
+                  <span className="btn-text">Export</span>
+                </button>
+              </div>
+            )}
+
+            <div className="header-divider" />
+
+            {/* Pad Utilities */}
+            <div className="header-btn-group">
+              <button
+                onClick={() => setIsLibraryOpen(!isLibraryOpen)}
+                className={`header-action-btn ${isLibraryOpen ? 'active' : ''}`}
+                title="Study Sources & AI Documents"
+                type="button"
+              >
+                <Library size={15} />
+                <span className="btn-text">Sources</span>
+              </button>
+
+              <button 
+                onClick={() => setIsVoiceRecorderOpen(!isVoiceRecorderOpen)}
+                className={`header-action-btn ${isVoiceRecorderOpen ? 'active-recording' : ''}`}
+                title="Voice Notes"
+                type="button"
+              >
+                <Mic size={15} />
+                <span className="btn-text">Voice</span>
+              </button>
+
+              <button 
+                onClick={() => setIsShareModalOpen(true)}
+                className={`header-action-btn ${isLiveSession ? 'active-live' : ''}`}
+                title="Live Collaboration & Sharing"
+                type="button"
+              >
+                <Share2 size={15} />
+                <span className="btn-text">Share</span>
+                {isLiveSession && (
+                  <span className="collab-badge">{collaborators}</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Editor Canvas (Excalidraw) */}
-        <div className="pad-editor-canvas" style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <Excalidraw 
-            excalidrawAPI={(api) => excalidrawAPIRef.current = api}
-            initialData={initialData}
-            onChange={onExcalidrawChange}
-            onPointerUpdate={handlePointerUpdate}
-            theme={isDark ? 'dark' : 'light'}
-            UIOptions={{
-              canvasActions: {
-                toggleTheme: false,
-                changeViewBackgroundColor: true,
-              }
-            }}
-            renderTopRightUI={() => (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginRight: '8px' }}>
-                <div className="pad-save-status" style={{ fontSize: '0.8rem' }}>
-                  {saveStatus === 'saved' && <span className="status-text saved" style={{ color: 'var(--text-secondary)' }}><CheckCircle2 size={14} /> Saved</span>}
-                  {saveStatus === 'error' && <span className="status-text error">Error saving</span>}
-                </div>
-                
-                <button 
-                  onClick={handleExportPDF}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    background: 'var(--surface-bg)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    fontSize: '0.85rem',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-bg)'}
-                >
-                  <Download size={14} /> Export Image
-                </button>
+        {/* Editor Canvas Area */}
+        <div 
+          ref={editorCanvasContainerRef}
+          className="pad-editor-canvas" 
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'row', minHeight: 0 }}
+        >
+          {/* Notes Panel (left side in split mode, or full width in notes mode) */}
+          {(padMode === 'notes' || padMode === 'split') && (
+            <div 
+              className="pad-notes-panel-wrapper"
+              style={{ 
+                width: padMode === 'split' ? `${splitRatio}%` : '100%', 
+                minWidth: padMode === 'split' ? '280px' : '100%',
+                maxWidth: padMode === 'split' ? '80%' : '100%',
+                height: '100%', 
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              <RichTextEditor
+                content={notesContent}
+                onChange={handleNotesChange}
+                readOnly={false}
+                placeholder="Start typing your notes..."
+                editorRef={editorRef}
+                onSnapCanvas={handleInsertCanvasSelectionToNotes}
+              />
+            </div>
+          )}
 
-                {!isLibraryOpen && (
-                  <button
-                    onClick={() => setIsLibraryOpen(true)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      background: 'var(--surface-bg)',
-                      border: '1px solid var(--border-color)',
-                      color: 'var(--text-primary)',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      fontSize: '0.85rem',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-bg)'}
-                  >
-                    <Library size={14} /> Study Sources
-                  </button>
-                )}
-              </div>
-            )}
-          >
+          {/* Draggable Split Divider in Split Mode */}
+          {padMode === 'split' && (
+            <div 
+              className="pad-split-divider"
+              onMouseDown={handleSplitMouseDown}
+              onDoubleClick={() => setSplitRatio(50)}
+              title="Drag to resize panels (Double-click to reset 50/50)"
+              role="separator"
+              aria-orientation="vertical"
+            >
+              <div className="pad-split-divider-grip" />
+            </div>
+          )}
+
+          {/* Canvas Panel (right side in split mode, or full width in canvas mode) */}
+          {(padMode === 'canvas' || padMode === 'split') && (
+            <div 
+              className="pad-canvas-panel-wrapper"
+              style={{ 
+                width: padMode === 'split' ? `${100 - splitRatio}%` : '100%', 
+                flex: padMode === 'split' ? 'none' : 1,
+                minWidth: padMode === 'split' ? '280px' : 0,
+                height: '100%', 
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <Excalidraw 
+                excalidrawAPI={(api) => excalidrawAPIRef.current = api}
+                initialData={initialData}
+                onChange={onExcalidrawChange}
+                onPointerUpdate={handlePointerUpdate}
+                theme={isDark ? 'dark' : 'light'}
+                UIOptions={{
+                  canvasActions: {
+                    toggleTheme: false,
+                    changeViewBackgroundColor: true,
+                  }
+                }}
+              >
             <MainMenu>
               <MainMenu.Item onSelect={() => {
                 if (excalidrawAPIRef.current) {
@@ -634,63 +966,6 @@ const WritingPad = () => {
             </MainMenu>
           </Excalidraw>
 
-          {/* Custom Bottom Right UI */}
-          <div style={{
-            position: 'absolute',
-            bottom: '16px',
-            right: '70px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            zIndex: 10
-          }}>
-            <button 
-              onClick={() => setIsShareModalOpen(true)}
-              style={{
-                position: 'relative',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: isLiveSession ? '#4bce97' : 'var(--surface-bg)',
-                border: isLiveSession ? 'none' : '1px solid var(--border-color)',
-                color: isLiveSession ? 'white' : 'var(--text-primary)',
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (!isLiveSession) e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
-              }}
-              onMouseLeave={(e) => {
-                if (!isLiveSession) e.currentTarget.style.backgroundColor = 'var(--surface-bg)';
-              }}
-              title="Live Collaboration & Sharing"
-            >
-              <Share2 size={16} />
-              {isLiveSession && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: '-4px',
-                  right: '-4px',
-                  background: '#4bce97',
-                  color: '#000',
-                  fontSize: '0.65rem',
-                  fontWeight: 'bold',
-                  width: '16px',
-                  height: '16px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '2px solid #232329'
-                }}>
-                  {collaborators}
-                </div>
-              )}
-            </button>
-          </div>
-
           <ImmersiveAIMenu 
             isOpen={immersiveMenu.isOpen}
             onClose={() => setImmersiveMenu(prev => ({ ...prev, isOpen: false }))}
@@ -699,9 +974,25 @@ const WritingPad = () => {
             canvasContext={immersiveMenu.canvasContext}
             onActionComplete={handleImmersiveActionComplete}
             excalidrawAPI={excalidrawAPIRef.current}
+            onInsertToNotes={handleInsertCanvasSelectionToNotes}
           />
+            </div>
+          )}
         </div>
 
+        {/* Study Tools */}
+        <StudyToolbar
+          onFlashcards={() => setIsFlashcardOpen(true)}
+          onQuiz={() => setIsQuizOpen(true)}
+          onMindmap={handleGenerateMindmap}
+          onMathSolver={() => setIsMathSolverOpen(true)}
+        />
+        
+        <FlashcardDrawer isOpen={isFlashcardOpen} onClose={() => setIsFlashcardOpen(false)} padId={id} />
+        <QuizModal isOpen={isQuizOpen} onClose={() => setIsQuizOpen(false)} padId={id} />
+        <MathSolver isOpen={isMathSolverOpen} onClose={() => setIsMathSolverOpen(false)} padId={id} />
+        <VoiceRecorder isOpen={isVoiceRecorderOpen} onClose={() => setIsVoiceRecorderOpen(false)} padId={id} />
+        
         <SharePadModal 
           isOpen={isShareModalOpen} 
           onClose={() => setIsShareModalOpen(false)} 
@@ -719,17 +1010,18 @@ const WritingPad = () => {
         <>
           {/* Resize Handle */}
           <div 
-            style={{
-              width: '4px',
-              cursor: 'col-resize',
-              backgroundColor: 'var(--border-color)',
-              zIndex: 10,
-              flexShrink: 0
-            }}
+            className="pad-sidebar-resizer"
             onMouseDown={handleMouseDown}
-          />
+            onDoubleClick={() => setSidebarWidth(360)}
+            title="Drag to resize panel (Double-click to reset)"
+          >
+            <div className="pad-resizer-line" />
+          </div>
           {/* Sidebar */}
-          <div style={{ width: sidebarWidth, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--surface-bg)' }}>
+          <div 
+            className="pad-sidebar-container"
+            style={{ width: `${sidebarWidth}px` }}
+          >
             <DocumentSidebar 
               padId={id} 
               activeDocumentId={activeDocument?.pad_document_id} 

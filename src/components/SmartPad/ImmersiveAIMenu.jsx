@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, FileText, HelpCircle, Send, Loader2 } from 'lucide-react';
+import { Sparkles, FileText, HelpCircle, Send, Loader2, ImagePlus } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import './ImmersiveAIMenu.css';
 
@@ -11,7 +11,8 @@ export const ImmersiveAIMenu = ({
   selectedText, 
   canvasContext, 
   onActionComplete,
-  excalidrawAPI
+  excalidrawAPI,
+  onInsertToNotes = null
 }) => {
   const { id } = useParams();
   const [query, setQuery] = useState('');
@@ -170,13 +171,28 @@ export const ImmersiveAIMenu = ({
           }}
         >
           {!isExpanded ? (
-            <button 
-              className="magic-wand-trigger" 
-              onClick={(e) => { e.stopPropagation(); setIsExpanded(true); }}
-              title="Excalidraw AI"
-            >
-              <Sparkles size={16} color="white" />
-            </button>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button 
+                className="magic-wand-trigger" 
+                onClick={(e) => { e.stopPropagation(); setIsExpanded(true); }}
+                title="AI Actions"
+              >
+                <Sparkles size={16} color="white" />
+              </button>
+              {onInsertToNotes && (
+                <button 
+                  className="magic-wand-trigger" 
+                  style={{ backgroundColor: '#105934', borderColor: '#15803d' }}
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onInsertToNotes(); 
+                  }}
+                  title="Add Selection to Notes as Image"
+                >
+                  <ImagePlus size={16} color="white" />
+                </button>
+              )}
+            </div>
           ) : isGenerating ? (
             <div className="immersive-ai-generating">
               <Loader2 size={18} className="ai-spin" />
@@ -185,6 +201,15 @@ export const ImmersiveAIMenu = ({
           ) : (
             <>
               <div className="immersive-ai-quick-actions">
+                {onInsertToNotes && (
+                  <button 
+                    onClick={() => { onInsertToNotes(); onClose(); }} 
+                    className="ai-quick-action"
+                    style={{ color: '#105934', fontWeight: 600 }}
+                  >
+                    <ImagePlus size={14} /> Add to Notes
+                  </button>
+                )}
                 <button onClick={() => handleAction('improve')} className="ai-quick-action">
                   <Sparkles size={14} /> Improve
                 </button>
@@ -196,6 +221,12 @@ export const ImmersiveAIMenu = ({
                 </button>
                 <button onClick={() => handleAction('custom', 'draw a flowchart for this')} className="ai-quick-action">
                   <Sparkles size={14} /> Diagram
+                </button>
+                <button onClick={() => handleAction('custom', 'generate flashcards from this text')} className="ai-quick-action">
+                  <Sparkles size={14} /> Flashcards
+                </button>
+                <button onClick={() => handleAction('custom', 'create a quiz about this topic')} className="ai-quick-action">
+                  <FileText size={14} /> Quiz Me
                 </button>
               </div>
               <form className="immersive-ai-input-wrapper" onSubmit={handleCustomSubmit}>

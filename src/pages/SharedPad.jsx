@@ -8,6 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 import { Excalidraw, MainMenu } from '@excalidraw/excalidraw';
 import { io } from 'socket.io-client';
+import { RichTextEditor } from '../components/SmartPad/RichTextEditor';
+import { PadModeToggle } from '../components/SmartPad/PadModeToggle';
 import '@excalidraw/excalidraw/index.css';
 
 class ErrorBoundary extends React.Component {
@@ -67,6 +69,8 @@ const SharedPad = () => {
   const searchParams = new URLSearchParams(location.search);
   const initialMode = searchParams.get('mode') === 'edit' ? 'edit' : 'readonly';
   const [collabMode, setCollabMode] = useState(initialMode); // 'edit' or 'readonly'
+  const [padMode, setPadMode] = useState('canvas'); // 'canvas' | 'split' | 'notes'
+  const [notesContent, setNotesContent] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Check auth requirement for edit mode
@@ -123,6 +127,17 @@ const SharedPad = () => {
         }
 
         setInitialData(loadedData);
+        setPadMode(res.data.pad_mode || 'canvas');
+        if (res.data.notes_content) {
+          try {
+            const parsedNotes = typeof res.data.notes_content === 'string'
+              ? JSON.parse(res.data.notes_content)
+              : res.data.notes_content;
+            setNotesContent(parsedNotes);
+          } catch (e) {
+            console.error("Parse notes error", e);
+          }
+        }
 
         if (user) {
           api.post(`/pads/shared/${id}/join`).catch(err => console.error('Failed to register collaborator', err));
@@ -151,6 +166,12 @@ const SharedPad = () => {
       if (excalidrawAPIRef.current && Array.isArray(data.elements)) {
         isRemoteUpdateRef.current = true;
         excalidrawAPIRef.current.updateScene({ elements: data.elements });
+      }
+    });
+
+    socket.on('notes_update', (data) => {
+      if (data.notesContent) {
+        setNotesContent(data.notesContent);
       }
     });
 
@@ -210,6 +231,17 @@ const SharedPad = () => {
     }, 1000),
     [id]
   );
+
+  const handleNotesChange = (json) => {
+    setNotesContent(json);
+    if (collabMode === 'edit' && socketRef.current) {
+      socketRef.current.emit('notes_update', {
+        padId: id,
+        notesContent: json
+      });
+      api.put(`/pads/${id}`, { notes_content: json }).catch(console.error);
+    }
+  };
 
   const onExcalidrawChange = useCallback((elements, appState) => {
     if (isRemoteUpdateRef.current) {
@@ -290,10 +322,10 @@ const SharedPad = () => {
       )}
 
       {/* Editor Header */}
-      <div className="pad-editor-header" style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="pad-editor-header">
         <div className="pad-header-left">
-          <button className="icon-btn-ghost" onClick={() => navigate(-1)}>
-            <ArrowLeft size={20} />
+          <button className="icon-btn-ghost" onClick={() => navigate(-1)} title="Go back">
+            <ArrowLeft size={18} />
           </button>
           <div className="pad-title-input" style={{ pointerEvents: 'none', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>{title}</span>
@@ -308,79 +340,77 @@ const SharedPad = () => {
             )}
           </div>
         </div>
+
+        <div className="pad-header-right">
+          <PadModeToggle mode={padMode} onChange={setPadMode} />
+          {!user ? (
+            <button 
+              onClick={handleLoginToCollaborate}
+              className="header-action-btn"
+              style={{ background: '#105934', color: 'white' }}
+            >
+              <LogIn size={14} /> Log in to Collaborate
+            </button>
+          ) : (
+            <button 
+              onClick={handleSaveToDesk}
+              className="header-action-btn"
+            >
+              <Save size={14} /> Save to your Pads
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Editor Canvas (Excalidraw) */}
-      <div className="pad-editor-canvas" style={{ flex: 1, position: 'relative', overflow: 'hidden', height: '100%', width: '100%' }}>
-        <Excalidraw 
-          excalidrawAPI={(api) => excalidrawAPIRef.current = api}
-          initialData={initialData}
-          onChange={onExcalidrawChange}
-          onPointerUpdate={handlePointerUpdate}
-          theme={isDark ? 'dark' : 'light'}
-          viewModeEnabled={collabMode === 'readonly'}
-          UIOptions={{
-            canvasActions: {
-              toggleTheme: false,
-              changeViewBackgroundColor: collabMode === 'edit',
-              clearCanvas: collabMode === 'edit',
-              loadScene: false,
-              saveToActiveFile: false,
-            }
-          }}
-          renderTopRightUI={() => (
-            <div style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
-              {!user ? (
-                <button 
-                  onClick={handleLoginToCollaborate}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    background: '#105934',
-                    border: 'none',
-                    color: 'white',
-                    padding: '6px 14px',
-                    borderRadius: '10px',
-                    fontSize: '0.85rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(16, 89, 52, 0.25)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <LogIn size={14} /> Log in to Collaborate
-                </button>
-              ) : (
-                <button 
-                  onClick={handleSaveToDesk}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    background: 'var(--surface-bg)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    fontSize: '0.85rem',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-bg)'}
-                >
-                  <Save size={14} /> Save to your Pads
-                </button>
-              )}
-            </div>
-          )}
-        >
-          <MainMenu>
+      {/* Editor Canvas (Excalidraw & Notes) */}
+      <div className="pad-editor-canvas" style={{ flex: 1, position: 'relative', overflow: 'hidden', height: '100%', width: '100%', display: 'flex', flexDirection: 'row', minHeight: 0 }}>
+        {(padMode === 'notes' || padMode === 'split') && (
+          <div style={{ 
+            width: padMode === 'split' ? '48%' : '100%', 
+            minWidth: padMode === 'split' ? '320px' : '100%',
+            height: '100%', 
+            borderRight: padMode === 'split' ? '1px solid var(--border-color)' : 'none',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <RichTextEditor
+              content={notesContent}
+              onChange={handleNotesChange}
+              readOnly={collabMode === 'readonly'}
+              placeholder="Shared notes..."
+            />
+          </div>
+        )}
+
+        {(padMode === 'canvas' || padMode === 'split') && (
+          <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', overflow: 'hidden' }}>
+            <Excalidraw 
+              excalidrawAPI={(api) => excalidrawAPIRef.current = api}
+              initialData={initialData}
+              onChange={onExcalidrawChange}
+              onPointerUpdate={handlePointerUpdate}
+              theme={isDark ? 'dark' : 'light'}
+              viewModeEnabled={collabMode === 'readonly'}
+              UIOptions={{
+                canvasActions: {
+                  toggleTheme: false,
+                  changeViewBackgroundColor: collabMode === 'edit',
+                  clearCanvas: collabMode === 'edit',
+                  loadScene: false,
+                  saveToActiveFile: false,
+                }
+              }}
+            >
+              <MainMenu>
             <MainMenu.DefaultItems.Help />
           </MainMenu>
         </Excalidraw>
       </div>
+    )}
     </div>
-  );
+  </div>
+);
 
   // If user is logged in, wrap in the standard app layout
   if (user) {

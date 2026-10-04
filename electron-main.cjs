@@ -91,12 +91,16 @@ function startAI(organizationId) {
   aiLogHistory = []; // Reset log history buffer for new run
   aiStarting = true;
 
+  const fs = require('fs');
   const isPackaged = app.isPackaged;
+  const devAiPaths = [
+    path.resolve(__dirname, '..', 'Merge_ai', 'main.py'),
+    path.resolve(__dirname, '..', 'Merge_AI', 'main.py'),
+  ];
   const aiPath = isPackaged
     ? path.join(process.resourcesPath, 'AI', 'main.py')
-    : path.resolve(__dirname, '..', 'Merge_AI', 'main.py');
+    : (devAiPaths.find(p => fs.existsSync(p)) || devAiPaths[0]);
 
-  const fs = require('fs');
   if (!fs.existsSync(aiPath)) {
     console.error(`[ELECTRON] ❌ AI script NOT FOUND at: ${aiPath}`);
     console.error('[ELECTRON] Check extraResources config in package.json');
@@ -108,7 +112,19 @@ function startAI(organizationId) {
   console.log(`[ELECTRON] Starting AI Service...`);
   console.log(`[ELECTRON] ⏳ Please wait ~45s for AI models (DeepFace/TensorFlow) to load...`);
 
-  const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+  // Detect virtual environment Python if available, otherwise fall back to system python
+  const venvWin = path.join(path.dirname(aiPath), 'venv', 'Scripts', 'python.exe');
+  const venvLinux = path.join(path.dirname(aiPath), 'venv', 'bin', 'python3');
+  const venvLinuxAlt = path.join(path.dirname(aiPath), 'venv', 'bin', 'python');
+
+  let pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+  if (fs.existsSync(venvWin)) {
+    pythonCmd = venvWin;
+  } else if (fs.existsSync(venvLinux)) {
+    pythonCmd = venvLinux;
+  } else if (fs.existsSync(venvLinuxAlt)) {
+    pythonCmd = venvLinuxAlt;
+  }
 
   pythonProcess = spawn(pythonCmd, [aiPath], {
     cwd: path.dirname(aiPath),

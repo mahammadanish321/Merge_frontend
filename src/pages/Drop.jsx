@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, MessageCircle, ArrowBigUp, ArrowBigDown, Clock, TrendingUp, Award, X, Loader2, Send, Share2, MoreHorizontal, Image, Paperclip, Bookmark, Repeat, Download, FileText, ChevronLeft, ChevronRight, Pencil, EyeOff, Trash2, ChevronDown, Eye, RotateCcw, Copy } from 'lucide-react';
+import { Flame, MessageCircle, ArrowBigUp, ArrowBigDown, Clock, TrendingUp, Award, X, Loader2, Send, Share2, MoreHorizontal, Image, Paperclip, Bookmark, Repeat, Download, FileText, ChevronLeft, ChevronRight, Pencil, EyeOff, Trash2, ChevronDown, Eye, RotateCcw, Copy, CornerDownRight, Sparkles } from 'lucide-react';
 import api from '../api';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import AnimatedEmojiPicker from '../components/AnimatedEmojiPicker';
+import AnimatedEmojiText, { getEmojiMeta } from '../components/AnimatedEmojiText';
+import { QUICK_REACT_EMOJIS } from '../config/animatedEmojis';
 import './Drop.css';
 
 export const timeAgo = (dateString) => {
@@ -127,62 +130,129 @@ const buildCommentTree = (comments) => {
   return rootComments;
 };
 
-const CommentItem = ({ comment, getAvatar, timeAgo, onVote, onDelete, user, onReplyClick, onExpandImage }) => {
+const CommentItem = ({ 
+  comment, 
+  getAvatar, 
+  timeAgo, 
+  onVote, 
+  onDelete, 
+  user, 
+  onReplyClick, 
+  onExpandImage,
+  postAuthorId,
+  postAuthorName
+}) => {
+  const isOP = Boolean(
+    (postAuthorId && (
+      comment.author_id === postAuthorId || 
+      comment.author_teacher_id === postAuthorId || 
+      comment.author_student_id === postAuthorId
+    )) ||
+    (postAuthorName && comment.author_name === postAuthorName)
+  );
+
+  const canDelete = Boolean(
+    user?.role === 'admin' ||
+    (user?.id && (
+      comment.author_id === user.id ||
+      comment.author_teacher_id === user.id ||
+      comment.author_student_id === user.id ||
+      comment.author_name === user.name
+    ))
+  );
+  const emojiMeta = getEmojiMeta(comment.body);
+
   return (
     <div className="comment-thread">
-      <div className="comment-item animate-fade-in">
-        {getAvatar(comment.author_name, comment.author_image)}
-        <span className="comment-author">{comment.author_name}</span>
-        <span className="comment-dot">·</span>
-        <span className="comment-time">{timeAgo(comment.created_at)}</span>
-      </div>
-      <div className="comment-content-area">
-        {comment.body && <div className="comment-text">{comment.body}</div>}
-        <RenderGallery item={comment} onExpandImage={onExpandImage} />
-        <div className="comment-footer">
-          <div className="comment-vote-group">
-            <button 
-              className={`comment-vote-btn ${comment.user_vote === 1 ? 'upvoted' : ''}`}
-              onClick={() => onVote(comment.id, comment.user_vote, 1)}
-            >
-              <ArrowBigUp size={16} />
-            </button>
-            <span className="comment-vote-score">{comment.score}</span>
-            <button 
-              className={`comment-vote-btn ${comment.user_vote === -1 ? 'downvoted' : ''}`}
-              onClick={() => onVote(comment.id, comment.user_vote, -1)}
-            >
-              <ArrowBigDown size={16} />
-            </button>
-          </div>
-          <button className="comment-action-btn" onClick={() => onReplyClick(comment)}>
-            <MessageCircle size={14} /> Reply
-          </button>
-          {(user?.role === 'admin' || user?.id === comment.author_id) && (
-            <button className="comment-action-btn delete-btn" onClick={() => onDelete(comment.id)}>
-              Delete
-            </button>
-          )}
+      <div className="comment-card-wrapper animate-fade-in">
+        <div className="comment-avatar-col">
+          {getAvatar(comment.author_name, comment.author_image)}
         </div>
-
-        {comment.children && comment.children.length > 0 && (
-          <div className="comment-children">
-            {comment.children.map(child => (
-              <CommentItem 
-                key={child.id} 
-                comment={child} 
-                getAvatar={getAvatar}
-                timeAgo={timeAgo}
-                onVote={onVote} 
-                onDelete={onDelete} 
-                user={user}
-                onReplyClick={onReplyClick}
-                onExpandImage={onExpandImage}
-              />
-            ))}
+        <div className="comment-main-col">
+          <div className="comment-header-row">
+            <div className="comment-author-info">
+              <span className="comment-author-name">{comment.author_name}</span>
+              {isOP && (
+                <span className="comment-op-badge" title="Original Poster">OP</span>
+              )}
+              {comment.author_role && comment.author_role !== 'student' && (
+                <span className={`drop-role-badge ${comment.author_role}`}>
+                  {comment.author_role}
+                </span>
+              )}
+              <span className="comment-dot">·</span>
+              <span className="comment-time-text">{timeAgo(comment.created_at)}</span>
+            </div>
           </div>
-        )}
+
+          <div className={`comment-bubble ${emojiMeta.isOnly ? 'is-emoji-only' : ''}`}>
+            {comment.body && <div className="comment-text"><AnimatedEmojiText text={comment.body} /></div>}
+            <RenderGallery item={comment} onExpandImage={onExpandImage} />
+          </div>
+
+          <div className="comment-actions-row">
+            <div className="comment-vote-pill">
+              <button 
+                className={`comment-vote-btn ${comment.user_vote === 1 ? 'upvoted' : ''}`}
+                onClick={() => onVote(comment.id, comment.user_vote, 1)}
+                title="Upvote"
+              >
+                <ArrowBigUp size={15} />
+              </button>
+              <span className={`comment-vote-score ${comment.user_vote === 1 ? 'upvoted' : comment.user_vote === -1 ? 'downvoted' : ''}`}>
+                {comment.score || 0}
+              </span>
+              <button 
+                className={`comment-vote-btn ${comment.user_vote === -1 ? 'downvoted' : ''}`}
+                onClick={() => onVote(comment.id, comment.user_vote, -1)}
+                title="Downvote"
+              >
+                <ArrowBigDown size={15} />
+              </button>
+            </div>
+
+            <button 
+              className="comment-action-pill-btn reply-btn" 
+              onClick={() => onReplyClick(comment)}
+              title="Reply to comment"
+            >
+              <CornerDownRight size={13} />
+              <span>Reply</span>
+            </button>
+
+            {canDelete && (
+              <button 
+                className="comment-action-pill-btn delete-btn" 
+                onClick={() => onDelete(comment.id)}
+                title="Delete comment"
+              >
+                <Trash2 size={13} />
+                <span>Delete</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
+
+      {comment.children && comment.children.length > 0 && (
+        <div className="comment-children-thread">
+          {comment.children.map(child => (
+            <CommentItem 
+              key={child.id} 
+              comment={child} 
+              getAvatar={getAvatar}
+              timeAgo={timeAgo}
+              onVote={onVote} 
+              onDelete={onDelete} 
+              user={user}
+              onReplyClick={onReplyClick}
+              onExpandImage={onExpandImage}
+              postAuthorId={postAuthorId}
+              postAuthorName={postAuthorName}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -1053,8 +1123,8 @@ const Drop = () => {
                 </div>
                 
                 <div className="drop-card-body">
-                  <h3 className="drop-card-title">{drop.title}</h3>
-                  {drop.body && <p className="drop-card-text">{drop.body}</p>}
+                  <h3 className="drop-card-title"><AnimatedEmojiText text={drop.title} /></h3>
+                  {drop.body && <p className="drop-card-text"><AnimatedEmojiText text={drop.body} /></p>}
                   <RenderGallery item={drop} onExpandImage={handleOpenLightbox} />
                 </div>
 
@@ -1091,7 +1161,10 @@ const Drop = () => {
                     </button>
                   </div>
                   
-                  <button className="drop-action-btn" onClick={(e) => { e.stopPropagation(); setSelectedDropId(drop.id); }}>
+                  <button 
+                    className={`drop-action-btn ${selectedDropId === drop.id ? 'active-comments' : ''}`} 
+                    onClick={(e) => { e.stopPropagation(); setSelectedDropId(drop.id); }}
+                  >
                     <MessageCircle size={18} />
                     <span>{drop.comment_count || 0} Comments</span>
                   </button>
@@ -1188,27 +1261,120 @@ const Drop = () => {
       {/* RIGHT COLUMN: Comment Panel */}
       <div className={`drop-comment-column ${selectedDropId ? 'open' : ''}`}>
         {!selectedDropId ? (
-          <div className="drop-empty-state">
-            <MessageCircle size={48} style={{ opacity: 0.2 }} />
-            <p>Select a post to view comments</p>
+          <div className="drop-empty-state-panel">
+            <div className="drop-empty-state-card">
+              <div className="drop-empty-icon-bubble">
+                <MessageCircle size={36} className="drop-empty-icon-svg" />
+              </div>
+              <h3 className="drop-empty-heading">Discussion Panel</h3>
+              <p className="drop-empty-description">
+                Select any post from your feed to view comments, join conversations, and share insights.
+              </p>
+              <div className="drop-empty-hint-pill">
+                <span>👈 Select a post to view comments</span>
+              </div>
+            </div>
           </div>
         ) : detailLoading && !selectedDropDetail ? (
           <div className="drop-empty-state">
-            <Loader2 className="animate-spin" size={32} />
+            <Loader2 className="animate-spin" size={32} style={{ color: '#105934' }} />
+            <p style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: 'var(--muted-foreground)' }}>Loading discussion...</p>
           </div>
         ) : selectedDropDetail ? (
           <>
             <div className="comment-panel-header">
-              <h3>Comments ({selectedDropDetail.comments?.length || 0})</h3>
-              <button className="comment-panel-close" onClick={() => setSelectedDropId(null)}>
-                <X size={20} />
-              </button>
+              <div className="comment-panel-header-left">
+                <div className="comment-panel-header-title-row">
+                  <div className="comment-panel-icon-wrap">
+                    <MessageCircle size={17} />
+                  </div>
+                  <h3 className="comment-panel-title">Comments</h3>
+                  <span className="comment-count-badge">
+                    {selectedDropDetail.comments?.length || 0}
+                  </span>
+                </div>
+                <div className="comment-panel-context-row">
+                  <span className="comment-panel-post-author">
+                    Post by <strong>@{selectedDropDetail.author_name}</strong>
+                  </span>
+                  {selectedDropDetail.title && (
+                    <>
+                      <span className="comment-panel-context-dot">·</span>
+                      <span className="comment-panel-post-snippet" title={selectedDropDetail.title}>
+                        {selectedDropDetail.title}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="comment-panel-header-actions">
+                <button 
+                  className={`comment-panel-action-btn ${detailLoading ? 'is-refreshing' : ''}`}
+                  onClick={() => {
+                    if (selectedDropId) {
+                      setDetailLoading(true);
+                      api.get(`/drops/${selectedDropId}`)
+                        .then(res => {
+                          commentCacheRef.current[selectedDropId] = res.data.drop;
+                          setSelectedDropDetail(res.data.drop);
+                        })
+                        .catch(() => addToast('Failed to refresh comments', 'error'))
+                        .finally(() => setDetailLoading(false));
+                    }
+                  }}
+                  title="Refresh comments"
+                >
+                  <RotateCcw size={16} className={detailLoading ? 'animate-spin' : ''} />
+                </button>
+                <button 
+                  className="comment-panel-close" 
+                  onClick={() => setSelectedDropId(null)}
+                  title="Close comments"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
             
             <div className="comment-panel-content">
               {selectedDropDetail.comments?.length === 0 ? (
-                <div style={{ textAlign: 'center', color: 'var(--muted-foreground)', marginTop: '2rem' }}>
-                  No comments yet. Be the first to share your thoughts!
+                <div className="comment-empty-interactive">
+                  <div className="comment-empty-icon-glow">
+                    <div className="comment-empty-circle-bg">
+                      <Sparkles size={28} className="comment-empty-icon" />
+                    </div>
+                  </div>
+                  <h4 className="comment-empty-title">Start the conversation</h4>
+                  <p className="comment-empty-subtitle">
+                    Be the first to share your thoughts, ask a question, or spark a discussion.
+                  </p>
+                  
+                  <div className="comment-starter-prompts">
+                    <span className="comment-starters-label">Quick conversation starters:</span>
+                    <div className="comment-prompt-chips">
+                      {[
+                        "💡 Great perspective!",
+                        "❓ Could you elaborate on this?",
+                        "👏 Thanks for sharing!",
+                        "🔥 Super helpful insight!"
+                      ].map((prompt, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="comment-prompt-chip"
+                          onClick={() => {
+                            setCommentBody(prompt);
+                            if (commentInputRef.current) {
+                              commentInputRef.current.focus();
+                            }
+                          }}
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 buildCommentTree(selectedDropDetail.comments).map(comment => (
@@ -1222,6 +1388,8 @@ const Drop = () => {
                     user={user}
                     onReplyClick={handleReplyClick}
                     onExpandImage={handleOpenLightbox}
+                    postAuthorId={selectedDropDetail.author_student_id || selectedDropDetail.author_teacher_id}
+                    postAuthorName={selectedDropDetail.author_name}
                   />
                 ))
               )}
@@ -1243,7 +1411,10 @@ const Drop = () => {
                 />
                 {replyingTo && (
                   <div className="comment-replying-banner animate-fade-in">
-                    <span>Replying to <strong>@{replyingTo.author_name}</strong></span>
+                    <div className="comment-replying-left">
+                      <CornerDownRight size={14} className="comment-replying-icon" />
+                      <span>Replying to <strong>@{replyingTo.author_name}</strong></span>
+                    </div>
                     <button onClick={() => setReplyingTo(null)} title="Cancel reply"><X size={14} /></button>
                   </div>
                 )}
@@ -1272,6 +1443,28 @@ const Drop = () => {
                     ))}
                   </div>
                 )}
+
+                {/* Quick Emoji Reaction Pills */}
+                <div className="comment-quick-emojis">
+                  <span className="comment-quick-label">React:</span>
+                  {QUICK_REACT_EMOJIS.map(emoji => (
+                    <button
+                      key={emoji.id}
+                      type="button"
+                      className="comment-quick-emoji-btn"
+                      onClick={() => {
+                        setCommentBody(prev => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + (emoji.char || emoji.shortcode) + ' ');
+                        if (commentInputRef.current) {
+                          commentInputRef.current.focus();
+                        }
+                      }}
+                      title={`Add ${emoji.name}`}
+                    >
+                      <img src={emoji.url} alt={emoji.name} className="quick-react-animated-img" />
+                    </button>
+                  ))}
+                </div>
+
                 <div className="comment-input-wrapper">
                   <textarea 
                     ref={commentInputRef}
@@ -1290,21 +1483,37 @@ const Drop = () => {
                       }
                     }}
                   />
+                  <AnimatedEmojiPicker 
+                    onSelectEmoji={(shortcode) => {
+                      setCommentBody(prev => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + shortcode + ' ');
+                      if (commentInputRef.current) {
+                        commentInputRef.current.focus();
+                      }
+                    }}
+                    disabled={commentSubmitting}
+                  />
                   <button 
-                    className="comment-attach-btn"
+                    className={`comment-attach-btn ${commentAttachments.length > 0 ? 'has-attachments' : ''}`}
                     onClick={() => commentFileInputRef.current?.click()}
                     title="Attach image(s) or file(s) (up to 10)"
                     disabled={uploadingCommentFile || commentAttachments.length >= 10}
                   >
                     {uploadingCommentFile ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}
+                    {commentAttachments.length > 0 && (
+                      <span className="comment-attach-badge">{commentAttachments.length}</span>
+                    )}
                   </button>
                   <button 
                     className="comment-submit-btn" 
                     onClick={() => handleAddComment()}
                     disabled={commentSubmitting || (!commentBody.trim() && commentAttachments.length === 0)}
+                    title="Send comment (Enter)"
                   >
                     {commentSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={18} />}
                   </button>
+                </div>
+                <div className="comment-input-hints">
+                  <span>Press <kbd>Enter ↵</kbd> to submit, <kbd>Shift + Enter</kbd> for new line</span>
                 </div>
               </div>
             )}
@@ -1381,7 +1590,13 @@ const Drop = () => {
               )}
             </div>
             <div className="drop-modal-footer">
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <AnimatedEmojiPicker 
+                  onSelectEmoji={(shortcode) => {
+                    setNewBody(prev => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + shortcode + ' ');
+                  }}
+                  disabled={submitting}
+                />
                 <button 
                   className="drop-action-btn" 
                   title="Attach image(s) (up to 10)"

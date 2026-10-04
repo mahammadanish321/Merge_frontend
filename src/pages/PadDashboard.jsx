@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FileText, Trash2, Clock, Zap, Users, ChevronRight, ArrowRight } from 'lucide-react';
+import { AcademicTemplates } from '../components/SmartPad/AcademicTemplates';
 import api from '../api';
 import './WritingPad.css';
 import { useToast } from '../context/ToastContext';
@@ -9,6 +10,7 @@ const PadDashboard = () => {
   const [pads, setPads] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showTemplates, setShowTemplates] = useState(false);
   const navigate = useNavigate();
   const { addToast } = useToast();
 
@@ -39,9 +41,19 @@ const PadDashboard = () => {
     }
   };
 
-  const handleCreateNew = async () => {
+  const handleCreateNew = () => {
+    setShowTemplates(true);
+  };
+
+  const handleTemplateSelect = async (templateData) => {
+    setShowTemplates(false);
     try {
-      const res = await api.post('/pads', { title: 'Untitled Pad' });
+      const res = await api.post('/pads', {
+        title: templateData.title || 'Untitled Pad',
+        content_json: templateData.content_json || null,
+        pad_mode: templateData.pad_mode || 'canvas',
+        notes_content: templateData.notes_content || null
+      });
       navigate(`/pads/${res.data.id}`);
     } catch (error) {
       console.error('Failed to create pad:', error);
@@ -85,8 +97,9 @@ const PadDashboard = () => {
           <h2>Writing Pads</h2>
           <p>Your distraction-free personal notes & live collaboration workspace</p>
         </div>
-        <button className="primary-btn" onClick={handleCreateNew}>
-          <Plus size={18} /> New Pad
+        <button className="pad-create-btn" onClick={handleCreateNew} type="button">
+          <Plus size={16} />
+          <span>New Pad</span>
         </button>
       </div>
 
@@ -157,12 +170,15 @@ const PadDashboard = () => {
           <p>Loading your pads...</p>
         </div>
       ) : pads.length === 0 ? (
-        <div className="pad-empty-state">
-          <FileText size={48} className="empty-icon" />
-          <h3>No pads yet</h3>
-          <p>Create your first writing pad to start taking notes.</p>
-          <button className="primary-btn" onClick={handleCreateNew}>
-            <Plus size={18} /> Create New Pad
+        <div className="pad-empty-state animate-fade-in">
+          <div className="pad-empty-icon-box">
+            <FileText size={36} />
+          </div>
+          <h3>No writing pads yet</h3>
+          <p>Create your first writing pad to start sketching, typing notes, or collaborating in real time.</p>
+          <button className="pad-empty-create-btn" onClick={handleCreateNew} type="button">
+            <Plus size={18} />
+            <span>Create New Pad</span>
           </button>
         </div>
       ) : (
@@ -170,31 +186,51 @@ const PadDashboard = () => {
           {pads.map(pad => (
             <div key={pad.id} className="pad-card" onClick={() => handleCardClick(pad)}>
               <div className="pad-card-header">
-                <FileText size={24} className="pad-icon" />
-                <button className="pad-delete-btn" onClick={(e) => handleDelete(e, pad.id)}>
+                <div className="pad-icon-box">
+                  <FileText size={20} />
+                </div>
+                <button 
+                  className="pad-delete-btn" 
+                  onClick={(e) => handleDelete(e, pad.id)}
+                  title="Delete Pad"
+                  type="button"
+                >
                   <Trash2 size={16} />
                 </button>
               </div>
               <div className="pad-card-body">
                 <h3>{pad.title || 'Untitled Pad'}</h3>
-                {pad.is_live_active ? (
-                  <div style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 89, 52, 0.12)', color: '#105934', padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700 }}>
-                    <Zap size={12} style={{ color: '#105934' }} /> Collaborated is Live
-                  </div>
-                ) : pad.is_owner === false ? (
-                  <div style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'var(--surface-bg)', color: '#64748b', padding: '3px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
-                    <Users size={12} /> Shared Pad
-                  </div>
-                ) : null}
+                
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                  {pad.pad_mode && (
+                    <span className="pad-mode-pill">
+                      {pad.pad_mode === 'split' ? 'Split View' : pad.pad_mode === 'notes' ? 'Notes' : 'Canvas'}
+                    </span>
+                  )}
+                  {pad.is_live_active ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(16, 89, 52, 0.12)', color: '#105934', padding: '2px 8px', borderRadius: '6px', fontSize: '0.725rem', fontWeight: 700 }}>
+                      <Zap size={11} style={{ color: '#105934' }} /> Live
+                    </span>
+                  ) : pad.is_owner === false ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'var(--hover-bg, #f1f5f9)', color: 'var(--text-secondary, #64748b)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.725rem', fontWeight: 600 }}>
+                      <Users size={11} /> Shared
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <div className="pad-card-footer">
-                <Clock size={14} /> 
+                <Clock size={13} /> 
                 <span>Updated {formatDate(pad.updated_at)}</span>
               </div>
             </div>
           ))}
         </div>
       )}
+      <AcademicTemplates 
+        isOpen={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        onSelectTemplate={handleTemplateSelect}
+      />
     </div>
   );
 };

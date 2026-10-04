@@ -1,0 +1,259 @@
+.template-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  padding: 1.5rem;
+}
+
+.template-modal {
+  background-color: var(--surface-bg, #ffffff);
+  border-radius: 24px;
+  padding: 24px 28px;
+  width: 100%;
+  max-width: 660px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color, #e2e8f0);
+  position: relative;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+/* Modal Header */
+.template-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+}
+
+.template-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #105934;
+  background: rgba(16, 89, 52, 0.08);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.template-modal-header h2 {
+  margin: 0 0 4px 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  letter-spacing: -0.01em;
+}
+
+.template-modal-header p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.template-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--hover-bg, #f1f5f9);
+  border: none;
+  color: var(--text-secondary, #64748b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.template-close-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+/* Template Cards Grid */
+.template-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.template-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  background-color: var(--surface-bg, #ffffff);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.template-card:hover {
+  border-color: #105934;
+  background-color: var(--hover-bg, #f8fafc);
+  box-shadow: 0 6px 18px -4px rgba(16, 89, 52, 0.12);
+  transform: translateY(-1px);
+}
+
+.template-card-icon-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background-color: rgba(16, 89, 52, 0.08);
+  color: #105934;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.18s ease;
+}
+
+.template-card:hover .template-card-icon-box {
+  background-color: #105934;
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.template-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.template-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.template-card-title-row h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+.template-mode-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(16, 89, 52, 0.06);
+  color: #105934;
+  border: 1px solid rgba(16, 89, 52, 0.15);
+}
+
+.template-card-body p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #64748b);
+  line-height: 1.35;
+}
+
+.template-card-arrow {
+  color: var(--border-color, #cbd5e1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.template-card:hover .template-card-arrow {
+  color: #105934;
+  transform: translateX(3px);
+}
+
+/* Dark Mode Overrides */
+html.dark .template-modal {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6);
+}
+
+html.dark .template-modal-header {
+  border-color: #334155;
+}
+
+html.dark .template-header-badge {
+  background-color: rgba(22, 163, 74, 0.15);
+  color: #4ade80;
+}
+
+html.dark .template-modal-header h2 {
+  color: #f8fafc;
+}
+
+html.dark .template-modal-header p {
+  color: #94a3b8;
+}
+
+html.dark .template-close-btn {
+  background-color: #0f172a;
+  color: #94a3b8;
+}
+
+html.dark .template-close-btn:hover {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+html.dark .template-card {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+html.dark .template-card:hover {
+  border-color: #16a34a;
+  background-color: #243248;
+  box-shadow: 0 6px 18px -4px rgba(22, 163, 74, 0.2);
+}
+
+html.dark .template-card-icon-box {
+  background-color: rgba(22, 163, 74, 0.15);
+  color: #4ade80;
+}
+
+html.dark .template-card:hover .template-card-icon-box {
+  background-color: #16a34a;
+  color: #ffffff;
+}
+
+html.dark .template-card-title-row h3 {
+  color: #f8fafc;
+}
+
+html.dark .template-mode-tag {
+  background-color: rgba(22, 163, 74, 0.15);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.25);
+}
+
+html.dark .template-card-body p {
+  color: #94a3b8;
+}
+
+html.dark .template-card-arrow {
+  color: #475569;
+}
+
+html.dark .template-card:hover .template-card-arrow {
+  color: #4ade80;
+}
+
